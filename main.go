@@ -26,7 +26,6 @@ func main() {
 	sk.readKeys(*fileWithKeys)
 	us.parseKey(sk)
 	for _, u := range us {
-		// TODO: allow appending ssh-keys to existing users
 		if !u.Exists() {
 			u.Shell = "/bin/bash"
 			if err := u.Create(); err != nil {
@@ -42,7 +41,11 @@ func main() {
 				}
 			}
 		} else {
-			log.Printf("User '%s' already exists. Skipping...", u.Name)
+			log.Printf("User '%s' already exists. Trying to append SSH keys...", u.Name)
+			// TODO: prevent key dublicating in the authorized_keys file on existing users
+			if err := u.AuthorizeSSHKeys(); err != nil {
+				log.Printf("Failed to add ssh key for user '%s': %v", u.Name, err)
+			}
 		}
 	}
 }
