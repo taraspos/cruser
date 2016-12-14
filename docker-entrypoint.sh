@@ -33,4 +33,3 @@ echo ">>>>>>>>>>>>>> trying if sudo not broken"
 sudo echo "!!!!!!!!!!!SUDO WORKS!!!!!!!!!!!"
 sleep 1
 echo ""
- 

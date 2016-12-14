@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"flag"
+	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
@@ -10,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/trane9991/cruser/user"
-	"io/ioutil"
 )
 
 type sshKeys []string
