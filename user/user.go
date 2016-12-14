@@ -15,6 +15,7 @@ import (
 
 var (
 	errorNoSuchUser = errors.New("User not exist")
+	DryRun          = false
 )
 
 // Profile contains general user configurations
@@ -43,6 +44,10 @@ func (u Profile) validateSudo() error {
 	var stdout, stderr bytes.Buffer
 
 	cmd := exec.Command("visudo", "-c", "-f", "-")
+	if DryRun {
+		cmdToStdout(cmd)
+		return nil
+	}
 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -224,7 +229,13 @@ func (u Profile) Create() error {
 
 	args = append(args, u.Name)
 
-	output, err := exec.Command("useradd", args...).CombinedOutput()
+	cmd := exec.Command("useradd", args...)
+	if DryRun {
+		cmdToStdout(cmd)
+		return nil
+	}
+
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("Command 'useradd %s' failed: %v\n%s", strings.Join(args, " "), err, output)
 	}
@@ -248,7 +259,13 @@ func (u Profile) Exists() bool {
 	if err != nil {
 		log.Fatal(err)
 	}
-	_, err = exec.Command("id", u.Name).CombinedOutput()
+	cmd := exec.Command("id", u.Name)
+	if DryRun {
+		cmdToStdout(cmd)
+		return false
+	}
+
+	_, err = cmd.CombinedOutput()
 	return err == nil
 }
 
@@ -257,7 +274,13 @@ func (u Profile) getUID() (int, error) {
 		return 0, errorNoSuchUser
 	}
 
-	uidStr, err := exec.Command("id", "-u", u.Name).Output()
+	cmd := exec.Command("id", "-u", u.Name)
+	if DryRun {
+		cmdToStdout(cmd)
+		return 0, nil
+	}
+
+	uidStr, err := cmd.Output()
 	if err != nil {
 		return 0, err
 	}
@@ -274,7 +297,13 @@ func (u Profile) getGID() (int, error) {
 		return 0, errorNoSuchUser
 	}
 
-	gidStr, err := exec.Command("id", "-g", u.Name).Output()
+	cmd := exec.Command("id", "-g", u.Name)
+	if DryRun {
+		cmdToStdout(cmd)
+		return 0, nil
+	}
+
+	gidStr, err := cmd.Output()
 	if err != nil {
 		return 0, err
 	}
@@ -284,4 +313,8 @@ func (u Profile) getGID() (int, error) {
 		return 0, err
 	}
 	return gid, nil
+}
+
+func cmdToStdout(cmd *exec.Cmd) {
+	fmt.Fprintf(os.Stdout, "%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
 }
