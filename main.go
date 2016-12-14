@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/trane9991/cruser/user"
+	"io/ioutil"
 )
 
 type sshKeys []string
@@ -22,9 +23,14 @@ func main() {
 	var sk sshKeys
 	var us users
 	fileWithKeys := flag.String("file", "users", "File with the list of SSH-keys and user emails in format of '~/.ssh/authorized_keys' file")
+	dryRun := flag.Bool("dry-run", false, "Do not execute commands, just print them.")
 	flag.Parse()
 	sk.readKeys(*fileWithKeys)
 	us.parseKey(sk)
+	user.DryRun = *dryRun
+	if user.DryRun {
+		log.SetOutput(ioutil.Discard)
+	}
 	for _, u := range us {
 		if !u.Exists() {
 			u.Shell = "/bin/bash"
