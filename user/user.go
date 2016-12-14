@@ -72,6 +72,11 @@ func (u Profile) addSudo() error {
 		return err
 	}
 
+	if DryRun {
+		fmt.Fprintf(os.Stdout, "Adding next content: '%s' to the sudoers file %s \n", []byte(u.sudoersLine()), u.sudoersFile())
+		return nil
+	}
+
 	err = ioutil.WriteFile(u.sudoersFile(), []byte(u.sudoersLine()), 0440)
 	if err != nil {
 		return err
@@ -100,6 +105,12 @@ func (u Profile) authorizedKeysFile() string {
 
 func createDir(path string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
+
+		if DryRun {
+			fmt.Fprintf(os.Stdout, "Creating dir '%s' \n", path)
+			return nil
+		}
+
 		err := os.MkdirAll(path, 0600)
 		if err != nil {
 			return err
@@ -113,6 +124,12 @@ func createFile(path string) error {
 	var _, err = os.Stat(path)
 
 	if os.IsNotExist(err) {
+
+		if DryRun {
+			fmt.Fprintf(os.Stdout, "Creating file '%s' \n", path)
+			return nil
+		}
+
 		var file, err = os.Create(path)
 		file.Chmod(0600)
 		file.Close()
@@ -132,6 +149,12 @@ func setOwnership(u Profile, path string) error {
 	if err != nil {
 		return err
 	}
+
+	if DryRun {
+		fmt.Fprintf(os.Stdout, "Changing ownership of '%s', to the uid=%d and gid=%d \n", path, uid, gid)
+		return nil
+	}
+
 	err = os.Chown(path, uid, gid)
 	if err != nil {
 		return err
@@ -165,6 +188,12 @@ func (u Profile) AuthorizeSSHKeys() error {
 	if err != nil {
 		return err
 	}
+
+	if DryRun {
+		fmt.Fprintf(os.Stdout, "Writing SSH keys to the file %s \n", u.authorizedKeysFile())
+		return nil
+	}
+
 	f, err := os.OpenFile(u.authorizedKeysFile(), os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
@@ -262,7 +291,7 @@ func (u Profile) Exists() bool {
 	cmd := exec.Command("id", u.Name)
 	if DryRun {
 		cmdToStdout(cmd)
-		return false
+		return true
 	}
 
 	_, err = cmd.CombinedOutput()
@@ -316,5 +345,5 @@ func (u Profile) getGID() (int, error) {
 }
 
 func cmdToStdout(cmd *exec.Cmd) {
-	fmt.Fprintf(os.Stdout, "%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
+	fmt.Fprintf(os.Stdout, "%s %s\n", cmd.Path, strings.Join(cmd.Args[1:], " "))
 }
