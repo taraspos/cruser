@@ -48,6 +48,21 @@ func main() {
 			}
 		} else {
 			log.Printf("User '%s' already exists. Trying to append SSH keys...", u.Name)
+
+			// TODO: this part need serious refactoring
+			var existingSk sshKeys
+			var existingUsers users
+			existingSk.readKeys(u.AuthorizedKeysFile())
+			existingUsers.parseKey(existingSk)
+			us = append(us, existingUsers...)
+			log.Printf("%+v", us)
+			us = us.mergeUsers()
+			log.Printf("%+v", us)
+			for _, usr := range us {
+				if usr.Name == u.Name {
+					u = usr
+				}
+			}
 			// TODO: prevent key dublicating in the authorized_keys file on existing users
 			if err := u.AuthorizeSSHKeys(); err != nil {
 				log.Printf("Failed to add ssh key for user '%s': %v", u.Name, err)
@@ -98,7 +113,7 @@ func (us users) mergeUsers() users {
 			for _, u := range us {
 				if key == u.Name {
 					mergedUser.Name = key
-					mergedUser.SSHAuthorizedKeys = append(mergedUser.SSHAuthorizedKeys, u.SSHAuthorizedKeys[0])
+					mergedUser.SSHAuthorizedKeys = append(mergedUser.SSHAuthorizedKeys, u.SSHAuthorizedKeys...)
 					mergedUser.Comment = fmt.Sprintf("%s%s;", mergedUser.Comment, u.Comment)
 				}
 			}
