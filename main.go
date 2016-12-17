@@ -25,31 +25,29 @@ type sshKeys []sshKey
 
 var re = regexp.MustCompile(`(\S*) (\S*) ((\w*)@.*)`)
 
-type usr struct {
-	Profile user.Profile
-	// TODO: exists is not used anywhere. Do something with it...
-	Exist bool
-}
-type users []usr
+type users []user.Profile
 
 func main() {
 	fileWithKeys := flag.String("file", "users", "File with the list of SSH-keys and user emails in format of '~/.ssh/authorized_keys' file")
 	dryRun := flag.Bool("dry-run", false, "Do not execute commands, just print them.")
 	flag.Parse()
+
 	// Read provided ssh keys
 	lines := readLines(*fileWithKeys)
+
 	// Remove dublicated SSH keys
 	lines = removeDuplicatesUnordered(lines)
-	// Get username from ssh keys emails
+
+	// parse componetns of ssh keys
 	sks := parseKeys(lines)
 
 	// Transform list of SSH keys to the list of users
 	us := keys2users(sks, false)
-	fmt.Printf("%+v", us)
 
-	// Checking if users exist, then read SSH keys that he already have\
-	// And add them to the list
+	// Checking if users exist, then read existing SSH keys
+	// from this usera nd add them to the list
 	us.checkUsers()
+
 	// Merge users again with SSH keys from existing users
 	us = us.mergeUsers()
 	user.DryRun = *dryRun
@@ -57,24 +55,24 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 	for _, u := range us {
-		if !u.Profile.Exists() {
-			u.Profile.Shell = "/bin/bash"
-			if err := u.Profile.Create(); err != nil {
-				log.Printf("Failed creating user '%s': %v", u.Profile.Name, err)
+		if !u.Exists() {
+			u.Shell = "/bin/bash"
+			if err := u.Create(); err != nil {
+				log.Printf("Failed creating user '%s': %v", u.Name, err)
 			} else {
-				log.Printf("User '%s' Successfully created", u.Profile.Name)
+				log.Printf("User '%s' Successfully created", u.Name)
 
-				if err := u.Profile.AuthorizeSSHKeys(); err != nil {
-					log.Printf("Failed to add ssh key for user '%s': %v", u.Profile.Name, err)
+				if err := u.AuthorizeSSHKeys(); err != nil {
+					log.Printf("Failed to add ssh key for user '%s': %v", u.Name, err)
 				}
-				if err := u.Profile.AuthorizeSudo(); err != nil {
-					log.Printf("Failed to authorize sudo rights for user '%s': %v", u.Profile.Name, err)
+				if err := u.AuthorizeSudo(); err != nil {
+					log.Printf("Failed to authorize sudo rights for user '%s': %v", u.Name, err)
 				}
 			}
 		} else {
-			log.Printf("User '%s' already exists. Appending SSH keys forcefully(rewriting completely SSH-keys file with old and new ssh keys)...", u.Profile.Name)
-			if err := u.Profile.AuthorizeSSHKeys(); err != nil {
-				log.Printf("Failed to add ssh key for user '%s': %v", u.Profile.Name, err)
+			log.Printf("User '%s' already exists. Appending SSH keys forcefully (rewriting completely SSH-keys file with old and new ssh keys)...", u.Name)
+			if err := u.AuthorizeSSHKeys(); err != nil {
+				log.Printf("Failed to add ssh key for user '%s': %v", u.Name, err)
 			}
 		}
 	}
@@ -82,9 +80,11 @@ func main() {
 
 // parse ssh keys, and save next data from it. Example:
 // ssh-rsa  aaaaaa...bbbbbbbb test@user.com
-// 1. ssh-key       - ssh-rsa  aaaaaa...bbbbbbbb test@user.com
-// 2. Username      - test
+// 0. ssh-key       - ssh-rsa  aaaaaa...bbbbbbbb test@user.com
+// 1. Type          - ssh-rsa
+// 2. Key           - aaaaaaa...bbbbbbbb
 // 3. Email address - test@user.com
+// 4. Username      - test
 func parseKeys(lines []string) sshKeys {
 	var sks sshKeys
 	for _, key := range lines {
@@ -108,6 +108,7 @@ func parseKeys(lines []string) sshKeys {
 	return sks
 }
 
+// convert list of keys to the list of SSH users
 func keys2users(sks sshKeys, existing bool) users {
 	encountered := map[string]int{}
 	// Count how many times user appears in the file
@@ -121,23 +122,20 @@ func keys2users(sks sshKeys, existing bool) users {
 		case value == 1: // if user appears only once in list, add him to the new list of users
 			for _, sk := range sks {
 				if key == sk.Username {
-					var u usr
-					u.Profile.Name = sk.Username
-					u.Profile.SSHAuthorizedKeys = append(u.Profile.SSHAuthorizedKeys, sk.Line)
-					u.Profile.Comment = sk.Email
+					var u user.Profile
+					u.Name = sk.Username
+					u.SSHAuthorizedKeys = append(u.SSHAuthorizedKeys, sk.Line)
+					u.Comment = sk.Email
 					result = append(result, u)
 				}
 			}
 		case value > 1: // if user appears more then once on the list, merge them in one and add to the list of users
-			var u usr
+			var u user.Profile
 			for _, sk := range sks {
 				if key == sk.Username {
-					u.Profile.Name = sk.Username
-					u.Profile.SSHAuthorizedKeys = append(u.Profile.SSHAuthorizedKeys, sk.Line)
-					u.Profile.Comment = fmt.Sprintf("%s%s;", u.Profile.Comment, sk.Email)
-
-					// if reading keys of existing users setting Exist=True
-					u.Exist = existing
+					u.Name = sk.Username
+					u.SSHAuthorizedKeys = append(u.SSHAuthorizedKeys, sk.Line)
+					u.Comment = fmt.Sprintf("%s%s;", u.Comment, sk.Email)
 				}
 			}
 			result = append(result, u)
@@ -146,13 +144,12 @@ func keys2users(sks sshKeys, existing bool) users {
 	return result
 }
 
-// TODO: this func and func above pretty similar. Do something
 // merge dublicated users in one with multiple ssh-keys
 func (us users) mergeUsers() users {
 	encountered := map[string]int{}
 	// Count how many times user appears in the file
 	for i := range us {
-		encountered[us[i].Profile.Name]++
+		encountered[us[i].Name]++
 	}
 
 	var result users
@@ -161,20 +158,17 @@ func (us users) mergeUsers() users {
 		switch {
 		case value == 1: // if user appears only once in list, add him to the new list of users
 			for _, u := range us {
-				if key == u.Profile.Name {
+				if key == u.Name {
 					result = append(result, u)
 				}
 			}
 		case value > 1: // if user appears more then once on the list, merge them in one and add to the list of users
-			var mergedUser usr
+			var mergedUser user.Profile
 			for _, u := range us {
-				if key == u.Profile.Name {
-					mergedUser.Profile.Name = key
-					mergedUser.Profile.SSHAuthorizedKeys = append(mergedUser.Profile.SSHAuthorizedKeys, u.Profile.SSHAuthorizedKeys...)
-					mergedUser.Profile.Comment = fmt.Sprintf("%s%s;", mergedUser.Profile.Comment, u.Profile.Comment)
-					if u.Exist || mergedUser.Exist {
-						mergedUser.Exist = true
-					}
+				if key == u.Name {
+					mergedUser.Name = key
+					mergedUser.SSHAuthorizedKeys = append(mergedUser.SSHAuthorizedKeys, u.SSHAuthorizedKeys...)
+					mergedUser.Comment = fmt.Sprintf("%s%s;", mergedUser.Comment, u.Comment)
 				}
 			}
 			result = append(result, mergedUser)
@@ -222,9 +216,10 @@ func removeDuplicatesUnordered(elements []string) []string {
 	return result
 }
 
-func getSSHKeysFromExistingUser(u usr) users {
+// read and parse ssh keys of existing user
+func getSSHKeysFromExistingUser(u user.Profile) users {
 	// Read provided ssh keys
-	lines := readLines(u.Profile.AuthorizedKeysFile())
+	lines := readLines(u.AuthorizedKeysFile())
 	// Remove dublicated SSH keys
 	lines = removeDuplicatesUnordered(lines)
 	// Get username from ssh keys emails
@@ -235,8 +230,7 @@ func getSSHKeysFromExistingUser(u usr) users {
 
 func (us *users) checkUsers() {
 	for _, u := range *us {
-		u.Exist = u.Profile.Exists()
-		if u.Exist {
+		if u.Exists() {
 			*us = append(*us, getSSHKeysFromExistingUser(u)...)
 		}
 	}
