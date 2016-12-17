@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	errorNoSuchUser = errors.New("User not exist")
-	DryRun          = false
+	errorNoSuchUser   = errors.New("User not exist")
+	DryRun            = false
+	ForceWriteSSHKeys = true
 )
 
 // Profile contains general user configurations
@@ -99,7 +100,7 @@ func (u Profile) authorizedKeysDir() string {
 	return fmt.Sprintf("/home/%s/.ssh", u.Name)
 }
 
-func (u Profile) authorizedKeysFile() string {
+func (u Profile) AuthorizedKeysFile() string {
 	return fmt.Sprintf("%s/authorized_keys", u.authorizedKeysDir())
 }
 
@@ -180,21 +181,27 @@ func (u Profile) AuthorizeSSHKeys() error {
 	if err != nil {
 		return err
 	}
-	err = createFile(u.authorizedKeysFile())
+	err = createFile(u.AuthorizedKeysFile())
 	if err != nil {
 		return err
 	}
-	err = setOwnership(u, u.authorizedKeysFile())
+	err = setOwnership(u, u.AuthorizedKeysFile())
 	if err != nil {
 		return err
 	}
 
 	if DryRun {
-		fmt.Fprintf(os.Stdout, "Writing SSH keys to the file %s \n", u.authorizedKeysFile())
+		fmt.Fprintf(os.Stdout, "Writing SSH keys to the file %s \n", u.AuthorizedKeysFile())
 		return nil
 	}
 
-	f, err := os.OpenFile(u.authorizedKeysFile(), os.O_APPEND|os.O_WRONLY, 0600)
+	var f *os.File
+	if ForceWriteSSHKeys {
+		f, err = os.OpenFile(u.AuthorizedKeysFile(), os.O_WRONLY, 0600)
+	} else {
+		f, err = os.OpenFile(u.AuthorizedKeysFile(), os.O_APPEND|os.O_WRONLY, 0600)
+
+	}
 	if err != nil {
 		return err
 	}
@@ -205,7 +212,7 @@ func (u Profile) AuthorizeSSHKeys() error {
 		return err
 	}
 
-	log.Printf("Public SSH keys successfully added to the file '%s'", u.authorizedKeysFile())
+	log.Printf("Public SSH keys successfully added to the file '%s'", u.AuthorizedKeysFile())
 	return nil
 }
 
