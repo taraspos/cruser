@@ -8,13 +8,17 @@ WARN_COLOR=\033[33;01m
 
 default: build
 
-build: 
+build: tests 
 	@echo "$(OK_COLOR)+++++ Building binary $(APP_NAME) +++++$(NO_COLOR)"
 	GOOS=linux go build -o ${APP_NAME} cmd/main.go 
 
 image: build
 	@echo "$(OK_COLOR)+++++ Building docker image $(APP_NAME) +++++$(NO_COLOR)"
 	docker build -t $(APP_NAME) .
+
+tests:
+	@echo "$(OK_COLOR)+++++ Running tests +++++$(NO_COLOR)"
+	go test -v ./...
 
 demo: image
 	@echo "$(OK_COLOR)+++++ Running very simple tests in docker container +++++$(NO_COLOR)"

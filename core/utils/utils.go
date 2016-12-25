@@ -24,7 +24,7 @@ func RemoveDuplicatesUnordered(elements []string) []string {
 }
 
 // ReadLines from file
-func ReadLines(path string) []string {
+func ReadLinesFromFile(path string) []string {
 	var lines []string
 	file, err := os.Open(path)
 	if err != nil {

@@ -1,7 +1,7 @@
 package keys
 
 import (
-	"fmt"
+	"log"
 	"regexp"
 )
 
@@ -38,7 +38,7 @@ func Parse(lines []string) SSHKeys {
 			sk.Username = match[4]
 
 			if sk.Type != "ssh-rsa" && sk.Type != "ssh-dss" && sk.Type != "ssh-ed25519" && sk.Type != "ecdsa-sha2-nistp256" {
-				fmt.Printf("'%s' - not known SSH Key type ", sk.Type)
+				log.Printf("'%s' - not known SSH Key type ", sk.Type)
 			} else {
 				sks = append(sks, sk)
 			}

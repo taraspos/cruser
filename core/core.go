@@ -53,7 +53,7 @@ func Run(path *string, dryRun *bool) {
 }
 
 // convert list of keys to the list of SSH users
-func keys2users(sks keys.SSHKeys, existing bool) users {
+func keys2users(sks keys.SSHKeys) users {
 	encountered := map[string]int{}
 	// Count how many times user appears in the file
 	for i := range sks {
@@ -125,12 +125,12 @@ func (us users) mergeUsers() users {
 // read and parse ssh keys of existing user
 func getUsersFromFileWithKeys(path string) users {
 	// Read provided ssh keys
-	lines := utils.ReadLines(path)
+	lines := utils.ReadLinesFromFile(path)
 	// Remove dublicated SSH keys
 	lines = utils.RemoveDuplicatesUnordered(lines)
 	// Get username from ssh keys emails
 	sks := keys.Parse(lines)
-	us := keys2users(sks, true)
+	us := keys2users(sks)
 	return us
 }
 
