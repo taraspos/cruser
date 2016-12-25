@@ -10,7 +10,7 @@ default: build
 
 build: 
 	@echo "$(OK_COLOR)+++++ Building binary $(APP_NAME) +++++$(NO_COLOR)"
-	GOOS=linux go build
+	GOOS=linux go build -o ${APP_NAME} cmd/main.go 
 
 image: build
 	@echo "$(OK_COLOR)+++++ Building docker image $(APP_NAME) +++++$(NO_COLOR)"

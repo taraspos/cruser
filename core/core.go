@@ -1,51 +1,25 @@
-package main
+package core
 
 import (
-	"bufio"
-	"flag"
 	"io/ioutil"
 	"log"
-	"os"
-	"regexp"
 
 	"fmt"
 
-	"github.com/trane9991/cruser/user"
+	"github.com/trane9991/cruser/core/keys"
+	"github.com/trane9991/cruser/core/user"
+	"github.com/trane9991/cruser/core/utils"
 )
-
-type sshKey struct {
-	Line     string
-	Type     string
-	Key      string
-	Username string
-	Email    string
-}
-
-type sshKeys []sshKey
-
-var re = regexp.MustCompile(`(\S*) (\S*) ((\w*)@.*)`)
 
 type users []user.Profile
 
-func main() {
-	fileWithKeys := flag.String("file", "users", "File with the list of SSH-keys and user emails in format of '~/.ssh/authorized_keys' file")
-	dryRun := flag.Bool("dry-run", false, "Do not execute commands, just print them.")
-	flag.Parse()
+// Run - creates users in the system from provided list of SSH keys
+func Run(path *string, dryRun *bool) {
 
-	// Read provided ssh keys
-	lines := readLines(*fileWithKeys)
-
-	// Remove dublicated SSH keys
-	lines = removeDuplicatesUnordered(lines)
-
-	// parse componetns of ssh keys
-	sks := parseKeys(lines)
-
-	// Transform list of SSH keys to the list of users
-	us := keys2users(sks, false)
+	us := getUsersFromFileWithKeys(*path)
 
 	// Checking if users exist, then read existing SSH keys
-	// from this usera nd add them to the list
+	// from this user and adds them to the list
 	us.checkUsers()
 
 	// Merge users again with SSH keys from existing users
@@ -78,38 +52,8 @@ func main() {
 	}
 }
 
-// parse ssh keys, and save next data from it. Example:
-// ssh-rsa  aaaaaa...bbbbbbbb test@user.com
-// 0. ssh-key       - ssh-rsa  aaaaaa...bbbbbbbb test@user.com
-// 1. Type          - ssh-rsa
-// 2. Key           - aaaaaaa...bbbbbbbb
-// 3. Email address - test@user.com
-// 4. Username      - test
-func parseKeys(lines []string) sshKeys {
-	var sks sshKeys
-	for _, key := range lines {
-		var sk sshKey
-		match := re.FindStringSubmatch(key)
-
-		if len(match) == 5 {
-			sk.Line = match[0]
-			sk.Type = match[1]
-			sk.Key = match[2]
-			sk.Email = match[3]
-			sk.Username = match[4]
-
-			if sk.Type != "ssh-rsa" && sk.Type != "ssh-dss" && sk.Type != "ssh-ed25519" && sk.Type != "ecdsa-sha2-nistp256" {
-				fmt.Printf("'%s' - not known SSH Key type ", sk.Type)
-			} else {
-				sks = append(sks, sk)
-			}
-		}
-	}
-	return sks
-}
-
 // convert list of keys to the list of SSH users
-func keys2users(sks sshKeys, existing bool) users {
+func keys2users(sks keys.SSHKeys, existing bool) users {
 	encountered := map[string]int{}
 	// Count how many times user appears in the file
 	for i := range sks {
@@ -178,52 +122,14 @@ func (us users) mergeUsers() users {
 	return result
 }
 
-// read lines from file
-func readLines(path string) []string {
-	var lines []string
-	file, err := os.Open(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		lines = append(lines, line)
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
-	return lines
-}
-
-// https://www.dotnetperls.com/duplicates-go
-func removeDuplicatesUnordered(elements []string) []string {
-	encountered := map[string]bool{}
-
-	// Create a map of all unique elements.
-	for v := range elements {
-		encountered[elements[v]] = true
-	}
-
-	// Place all keys from the map into a slice.
-	result := []string{}
-	for key := range encountered {
-		result = append(result, key)
-	}
-	return result
-}
-
 // read and parse ssh keys of existing user
-func getSSHKeysFromExistingUser(u user.Profile) users {
+func getUsersFromFileWithKeys(path string) users {
 	// Read provided ssh keys
-	lines := readLines(u.AuthorizedKeysFile())
+	lines := utils.ReadLines(path)
 	// Remove dublicated SSH keys
-	lines = removeDuplicatesUnordered(lines)
+	lines = utils.RemoveDuplicatesUnordered(lines)
 	// Get username from ssh keys emails
-	sks := parseKeys(lines)
+	sks := keys.Parse(lines)
 	us := keys2users(sks, true)
 	return us
 }
@@ -231,7 +137,7 @@ func getSSHKeysFromExistingUser(u user.Profile) users {
 func (us *users) checkUsers() {
 	for _, u := range *us {
 		if u.Exists() {
-			*us = append(*us, getSSHKeysFromExistingUser(u)...)
+			*us = append(*us, getUsersFromFileWithKeys(u.AuthorizedKeysFile())...)
 		}
 	}
 }

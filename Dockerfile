@@ -1,8 +1,8 @@
-FROM ubuntu
-RUN apt-get update && apt-get -y install sudo vim
+# FROM ubuntu
+# RUN apt-get update && apt-get -y install sudo vim
 
-# FROM centos
-# RUN yum install -y sudo
+FROM centos
+RUN yum install -y sudo
 
 ADD users /users
 ADD cruser /usr/local/bin/cruser
